@@ -38,8 +38,7 @@ const HomeOrder = () => {
         default: return 'bg-yellow-100 text-yellow-800 border-yellow-200';
     }
   };
-
-  // --- CẤU HÌNH CỘT CHO DATATABLE (ĐÃ CẬP NHẬT HIỂN THỊ VOUCHER) ---
+ 
   const columns = [
     { 
       header: "STT", 
@@ -85,15 +84,13 @@ const HomeOrder = () => {
         render: (row) => <span className="text-xs font-bold uppercase bg-gray-100 px-2 py-1 rounded text-gray-600">{row.pttt || "COD"}</span>
     },
     { 
-      header: "Tổng tiền & Voucher", // Đổi tên cột
+      header: "Tổng tiền & Voucher",  
       accessor: "totalPrice",
       className: "w-40 text-right",
       render: (row) => (
-        <div className="flex flex-col items-end gap-1">
-            {/* Giá tiền cuối cùng */}
+        <div className="flex flex-col items-end gap-1"> 
             <span className="font-bold text-[#D9534F] text-sm">{formatCurrency(row.totalPrice)}</span>
-            
-            {/* Hiển thị Voucher nếu có */}
+             
             {row.vouchers ? (
                <div className="flex items-center gap-1 bg-green-50 px-1.5 py-0.5 rounded border border-green-200">
                  <span className="text-[10px] font-mono font-bold text-green-700">{row.vouchers.maGiamGia}</span>
@@ -129,8 +126,7 @@ const HomeOrder = () => {
       ),
     },
   ];
-
-  // --- FETCH DATA ---
+ 
   const fetchOrders = async () => {
     setLoading(true);
     try {
@@ -140,8 +136,7 @@ const HomeOrder = () => {
     finally { setLoading(false); }
   };
   useEffect(() => { fetchOrders(); }, []);
-
-  // --- MODAL LOGIC ---
+ 
   const handleOpenModal = (type, order) => {
     setModalType(type);
     setSelectedOrder(order ? JSON.parse(JSON.stringify(order)) : null);
@@ -166,15 +161,13 @@ const HomeOrder = () => {
       handleCloseModal(); fetchOrders();
     } catch (error) { console.log(error); }
   };
-
-  // --- MODAL FIELDS (ĐÃ CẬP NHẬT HIỂN THỊ CHI TIẾT VOUCHER) ---
+ 
   const modalFields = [
     { header: "Mã đơn", accessor: "_id", readOnly: true, className: "col-span-1 bg-gray-100 text-xs" },
     { header: "Ngày đặt", accessor: "createdAt", readOnly: true, className: "col-span-1 bg-gray-100", render: (d) => new Date(d.createdAt).toLocaleString('vi-VN') },
     { header: "Khách hàng", accessor: "account", readOnly: true, className: "col-span-1 bg-gray-100", render: (d) => d.account?.username },
     { header: "SĐT", accessor: "phone", readOnly: true, className: "col-span-1 bg-gray-100 font-bold" },
-    
-    // Cập nhật phần hiển thị Voucher trong Modal
+     
     { 
         header: "Voucher áp dụng", 
         accessor: "vouchers", 

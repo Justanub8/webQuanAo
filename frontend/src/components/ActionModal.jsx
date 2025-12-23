@@ -2,8 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { AiOutlineClose, AiOutlineWarning } from 'react-icons/ai'; 
 import { FiCheck, FiX } from 'react-icons/fi'; 
 
-//File này sẽ sửa lại 
-
 const DynamicInput = ({ field, value, onChange }) => {
   const baseClass = "w-full px-4 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 focus:outline-none transition-all duration-200 ease-in-out placeholder-gray-400";
   const safeValue = value !== undefined && value !== null ? value : '';

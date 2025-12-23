@@ -15,10 +15,9 @@ router.post('/', verifyToken, async (request, response) => {
         if (request.user.id !== accountId) return response.status(403).json({ message: "Không có quyền!" });
         if (!items || items.length === 0) return response.status(400).send({ message: "Giỏ hàng rỗng" });
 
-        let productTotal = 0; // Tổng tiền hàng (chưa giảm, chưa ship)
+        let productTotal = 0;  
         const orderItems = [];
-
-        // BƯỚC 1: Duyệt qua sản phẩm để lấy giá chuẩn từ DB & check tồn kho
+ 
         for (const clientItem of items) {
             const productInDb = await Product.findById(clientItem.productId);
             if (!productInDb) {
@@ -26,9 +25,7 @@ router.post('/', verifyToken, async (request, response) => {
             }
             if (productInDb.soLuongConLai < clientItem.quantity) {
                 return response.status(400).json({ message: `Sản phẩm "${productInDb.tenSanPham}" không đủ hàng!` });
-            }
-
-            // Lưu item với giá lấy từ DB (bảo mật)
+            } 
             orderItems.push({
                 product: productInDb._id,
                 quantity: clientItem.quantity,
@@ -38,8 +35,7 @@ router.post('/', verifyToken, async (request, response) => {
 
             productTotal += clientItem.quantity * productInDb.giaBan;
         }
-
-        // BƯỚC 2: Xử lý Voucher (Validate lại tại Server)
+ 
         let discountAmount = 0;
         let appliedVoucherId = null;
 
@@ -47,11 +43,10 @@ router.post('/', verifyToken, async (request, response) => {
             const voucher = await Voucher.findOne({ maGiamGia: voucherCode, trangThai: 'Online' });
             
             if (voucher) {
-                const now = new Date();
-                // Check lại điều kiện: Hạn, Lượt dùng, Giá tối thiểu
+                const now = new Date(); 
                 if (now <= new Date(voucher.ngayHetHan) && 
                     voucher.soLanDaSuDung < voucher.soLanSuDungMax &&
-                    productTotal >= voucher.giaTriToiThieu) { // <-- Check Min Value
+                    productTotal >= voucher.giaTriToiThieu) {  
                     
                     if (voucher.loaiMa === '%') {
                         discountAmount = (productTotal * voucher.giaTri) / 100;
@@ -61,17 +56,14 @@ router.post('/', verifyToken, async (request, response) => {
                     if (discountAmount > productTotal) discountAmount = productTotal;
 
                     appliedVoucherId = voucher._id;
-
-                    // Cập nhật lượt dùng
+ 
                     await Voucher.findByIdAndUpdate(voucher._id, { $inc: { soLanDaSuDung: 1 } });
                 }
             }
         }
-
-        // BƯỚC 3: Tính tổng tiền cuối cùng
+ 
         const finalTotalPrice = productTotal - discountAmount ;
-
-        // BƯỚC 4: Tạo đơn hàng
+ 
         const newOrder = await Order.create({
             account: accountId,
             items: orderItems,
@@ -81,28 +73,23 @@ router.post('/', verifyToken, async (request, response) => {
             pttt: paymentMethod || "COD",
             note: note || "",
             status: "Pending",
-            vouchers: appliedVoucherId // Lưu reference voucher
+            vouchers: appliedVoucherId  
         });
-
-        // BƯỚC 5: Trừ kho sản phẩm
+ 
         await Promise.all(orderItems.map(async (item) => {
             await Product.findByIdAndUpdate(item.product, {
                 $inc: { soLuongConLai: -item.quantity, soLuongDaBan: item.quantity }
             });
         }));
-
-        // BƯỚC 6: Xóa sản phẩm đã mua khỏi giỏ hàng
+ 
         const currentCart = await Cart.findOne({ account: accountId });
         if (currentCart) {
-            currentCart.items = currentCart.items.filter(cItem => {
-                // Giữ lại những item KHÔNG nằm trong danh sách vừa mua
+            currentCart.items = currentCart.items.filter(cItem => { 
                 return !orderItems.some(oItem => 
                     oItem.product.toString() === cItem.product.toString() && 
                     oItem.size === cItem.size
                 );
-            });
-            // Tính lại tổng tiền giỏ hàng sau khi xoá
-            // (Đoạn này tuỳ logic giỏ hàng của bạn, có thể set 0 hoặc tính lại)
+            }); 
              await currentCart.save();
         }
 

@@ -192,7 +192,7 @@ export const ActionModal = ({ isOpen, onClose, title, type, fields, data, onSubm
                     <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
                         {field.header}
                     </label>
-                    <div className="text-gray-800 font-medium text-sm break-words">
+                    <div className="text-gray-800 font-medium text-sm wrap-break-word">
                         {field.render ? field.render(formData) : 
                         (Array.isArray(formData[field.accessor]) ? formData[field.accessor].join(', ') : formData[field.accessor] || '---')}
                     </div>

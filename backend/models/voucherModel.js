@@ -8,7 +8,8 @@ const voucherSchema = mongoose.Schema(
         ngayHetHan: {type: Date,require: true,},
         soLanSuDungMax: {type: Number,require: true,},
         soLanDaSuDung: {type: Number,require: true,default: 0,},
-        giaTri: {type: Number,require: true,}
+        giaTri: {type: Number,require: true,},
+        giaTriToiThieu: {type: Number, require: false, default: 0}
     },
     {
         timestamps: true,

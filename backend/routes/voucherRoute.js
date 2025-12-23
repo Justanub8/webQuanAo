@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { response } from 'express';
 import { Voucher } from '../models/voucherModel.js';
 import { verifyAdmin } from '../middleware/authMiddleware.js';
 
@@ -56,7 +56,8 @@ router.post('/', verifyAdmin, async (request, response) => {
             ngayThem: request.body.ngayThem,
             ngayHetHan: request.body.ngayHetHan,
             soLanSuDungMax: request.body.soLanSuDungMax,
-            giaTri: request.body.giaTri
+            giaTri: request.body.giaTri,
+            giaTriToiThieu: request.body.giaTriToiThieu,
         };
 
         const voucher = await Voucher.create(newVoucher);
@@ -146,4 +147,45 @@ router.delete('/:id', verifyAdmin, async (request, response) => {
     }
 });
 
+router.post('/check', async(request, response) => {
+    try{
+        const {code, totalAmount} = request.body;
+        const voucher = await Voucher.findOne({
+            maGiamGia: code,
+            trangThai: 'Online',
+        })
+        if(!voucher){
+            return response.status(400).send({message: 'Voucher không tồn tại'})
+        }
+        if (new Date() > new Date(voucher.ngayHetHan)) {
+            return response.status(400).json({ message: "Mã giảm giá đã hết hạn!" });
+        }
+        if (voucher.soLanDaSuDung >= voucher.soLanSuDungMax) {
+            return response.status(400).json({ message: "Mã giảm giá đã hết lượt sử dụng!" });
+        }
+        if (totalAmount < voucher.giaTriToiThieu) {
+            const minStr = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(voucher.giaTriToiThieu);
+            return response.status(400).json({ message: `Đơn hàng phải từ ${minStr} mới được dùng mã này!` });
+        }
+        let discountAmount = 0;
+        if(voucher.loaiMa === '%'){
+            discountAmount = (totalAmount * voucher.giaTri) /100;
+        }else{
+            discountAmount = voucher.giaTri;
+        }
+        if(discountAmount > totalAmount){
+            discountAmount = totalAmount;
+        }
+        return response.status(200).json({
+            message: "Áp dụng mã thành công!",
+            data: {
+                code: voucher.maGiamGia,
+                discount: discountAmount
+            }
+        });
+    }catch(error){
+        console.log(error);
+        return response.status(500).send({message: error.message});
+    }
+});
 export default router;

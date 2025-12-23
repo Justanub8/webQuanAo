@@ -11,13 +11,9 @@ const calculateTotalPrice = (cartItems) => {
 };
 
 router.post('/', verifyToken, async (request, response) => {
-    console.log("-------------------------------------------------");
-    console.log("1. Đã nhận Request thêm giỏ hàng!");
     
     try {
         const { accountId, productId, quantity, size } = request.body;
-        
-        console.log("2. Dữ liệu nhận được:", { accountId, productId, quantity, size });
         if (!accountId || !productId || !quantity || !size) {
             console.log("ERROR: Thiếu dữ liệu đầu vào");
             return response.status(400).send({
@@ -30,7 +26,6 @@ router.post('/', verifyToken, async (request, response) => {
             console.log("ERROR: Không tìm thấy User có ID:", accountId); 
             return response.status(404).send({ message: "User not found! (Tài khoản không tồn tại trong DB)" });
         }
-        console.log("3. User hợp lệ:", user.username);
         if (user.trangThai === 'Offline') {
             return response.status(403).send({ message: "Tài khoản đang bị khóa!" });
         }
@@ -40,7 +35,6 @@ router.post('/', verifyToken, async (request, response) => {
             console.log("ERROR: Không tìm thấy Product có ID:", productId);
             return response.status(404).send({ message: "Product not found! (Sản phẩm không tồn tại)" });
         }
-        console.log("4. Product hợp lệ:", product.tenSanPham);
 
         let cart = await Cart.findOne({ account: accountId });
 
@@ -57,7 +51,6 @@ router.post('/', verifyToken, async (request, response) => {
                 items: newCartItems,
                 totalPrice: calculateTotalPrice(newCartItems)
             });
-            console.log("5. Tạo giỏ hàng mới thành công!");
             return response.status(201).json({ message: "Cart created successfully", cart: newCart });
         }
 
@@ -72,7 +65,6 @@ router.post('/', verifyToken, async (request, response) => {
         cart.totalPrice = calculateTotalPrice(cart.items);
         
         await cart.save();
-        console.log("5. Cập nhật giỏ hàng thành công!");
         return response.status(200).json({ message: "Item added to cart", cart });
 
     } catch (error) {

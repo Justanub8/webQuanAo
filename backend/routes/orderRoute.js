@@ -2,95 +2,114 @@ import express from 'express';
 import { Order } from '../models/orderModel.js';
 import { Cart } from '../models/cartModel.js';
 import { Product } from '../models/productModel.js';
+import { Voucher } from '../models/voucherModel.js'
 import { verifyToken, verifyAdmin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
 router.post('/', verifyToken, async (request, response) => {
     try {
-        const { accountId, shippingAddress, phone, items, paymentMethod, note } = request.body;
+        const { accountId, shippingAddress, phone, items, paymentMethod, note, voucherCode } = request.body;
 
-        if (!accountId) {
-            return response.status(400).send({ message: "AccountId is required" });
-        }
-        if (request.user.id !== accountId) {
-            return response.status(403).json({ message: "Bạn không được phép đặt hàng cho tài khoản khác!" });
-        }
+        if (!accountId) return response.status(400).send({ message: "Thiếu accountId" });
+        if (request.user.id !== accountId) return response.status(403).json({ message: "Không có quyền!" });
+        if (!items || items.length === 0) return response.status(400).send({ message: "Giỏ hàng rỗng" });
 
-        if (!items || items.length === 0) {
-            return response.status(400).send({ message: "Order items cannot be empty" });
-        }
-
-        let finalTotalPrice = 0;
+        let productTotal = 0; // Tổng tiền hàng (chưa giảm, chưa ship)
         const orderItems = [];
+
+        // BƯỚC 1: Duyệt qua sản phẩm để lấy giá chuẩn từ DB & check tồn kho
         for (const clientItem of items) {
             const productInDb = await Product.findById(clientItem.productId);
             if (!productInDb) {
-                return response.status(404).json({ message: `Product ID ${clientItem.productId} not found` });
+                return response.status(404).json({ message: `Không tìm thấy sản phẩm ID: ${clientItem.productId}` });
             }
             if (productInDb.soLuongConLai < clientItem.quantity) {
-                return response.status(400).json({ 
-                    message: `Sản phẩm "${productInDb.tenSanPham}" đã hết hàng hoặc không đủ số lượng!` 
-                });
+                return response.status(400).json({ message: `Sản phẩm "${productInDb.tenSanPham}" không đủ hàng!` });
             }
 
-            const itemSize = clientItem.size;
-            if (!itemSize) {
-                return response.status(400).json({ 
-                    message: `Vui lòng chọn size cho sản phẩm: ${productInDb.tenSanPham}` 
-                });
-            }
-
+            // Lưu item với giá lấy từ DB (bảo mật)
             orderItems.push({
                 product: productInDb._id,
                 quantity: clientItem.quantity,
-                size: itemSize,
+                size: clientItem.size,
                 price: productInDb.giaBan 
             });
 
-            finalTotalPrice += clientItem.quantity * productInDb.giaBan;
+            productTotal += clientItem.quantity * productInDb.giaBan;
         }
 
+        // BƯỚC 2: Xử lý Voucher (Validate lại tại Server)
+        let discountAmount = 0;
+        let appliedVoucherId = null;
+
+        if (voucherCode) {
+            const voucher = await Voucher.findOne({ maGiamGia: voucherCode, trangThai: 'Online' });
+            
+            if (voucher) {
+                const now = new Date();
+                // Check lại điều kiện: Hạn, Lượt dùng, Giá tối thiểu
+                if (now <= new Date(voucher.ngayHetHan) && 
+                    voucher.soLanDaSuDung < voucher.soLanSuDungMax &&
+                    productTotal >= voucher.giaTriToiThieu) { // <-- Check Min Value
+                    
+                    if (voucher.loaiMa === '%') {
+                        discountAmount = (productTotal * voucher.giaTri) / 100;
+                    } else {
+                        discountAmount = voucher.giaTri;
+                    }
+                    if (discountAmount > productTotal) discountAmount = productTotal;
+
+                    appliedVoucherId = voucher._id;
+
+                    // Cập nhật lượt dùng
+                    await Voucher.findByIdAndUpdate(voucher._id, { $inc: { soLanDaSuDung: 1 } });
+                }
+            }
+        }
+
+        // BƯỚC 3: Tính tổng tiền cuối cùng
+        const finalTotalPrice = productTotal - discountAmount ;
+
+        // BƯỚC 4: Tạo đơn hàng
         const newOrder = await Order.create({
             account: accountId,
             items: orderItems,
-            totalPrice: finalTotalPrice , 
-            shippingAddress: shippingAddress || "Default Address",
-            phone: phone || "",
-            paymentMethod: paymentMethod || "COD",
+            totalPrice: finalTotalPrice,
+            shippingAddress: shippingAddress,
+            phone: phone,
+            pttt: paymentMethod || "COD",
             note: note || "",
-            status: "Pending"
+            status: "Pending",
+            vouchers: appliedVoucherId // Lưu reference voucher
         });
 
-        await Promise.all(orderItems.map(async (orderItem) => {
-            await Product.findByIdAndUpdate(orderItem.product, {
-                $inc: { 
-                    soLuongConLai: -orderItem.quantity,
-                    soLuongDaBan: orderItem.quantity
-                }
+        // BƯỚC 5: Trừ kho sản phẩm
+        await Promise.all(orderItems.map(async (item) => {
+            await Product.findByIdAndUpdate(item.product, {
+                $inc: { soLuongConLai: -item.quantity, soLuongDaBan: item.quantity }
             });
         }));
 
+        // BƯỚC 6: Xóa sản phẩm đã mua khỏi giỏ hàng
         const currentCart = await Cart.findOne({ account: accountId });
         if (currentCart) {
-            currentCart.items = currentCart.items.filter(cartItem => {
-                const isBought = orderItems.some(orderItem => 
-                    orderItem.product.toString() === cartItem.product.toString() && 
-                    orderItem.size === cartItem.size
+            currentCart.items = currentCart.items.filter(cItem => {
+                // Giữ lại những item KHÔNG nằm trong danh sách vừa mua
+                return !orderItems.some(oItem => 
+                    oItem.product.toString() === cItem.product.toString() && 
+                    oItem.size === cItem.size
                 );
-                return !isBought; 
             });
-            currentCart.totalPrice = currentCart.items.reduce((total, item) => total + (item.price * item.quantity), 0);
-            await currentCart.save();
+            // Tính lại tổng tiền giỏ hàng sau khi xoá
+            // (Đoạn này tuỳ logic giỏ hàng của bạn, có thể set 0 hoặc tính lại)
+             await currentCart.save();
         }
 
-        return response.status(201).json({ 
-            message: "Order placed successfully!", 
-            order: newOrder 
-        });
+        return response.status(201).json({ message: "Đặt hàng thành công!", order: newOrder });
 
     } catch (error) {
-        console.error("Error creating order:", error);
+        console.error("Order Error:", error);
         return response.status(500).send({ message: error.message });
     }
 });
@@ -103,6 +122,7 @@ router.get('/', verifyAdmin, async (request, response) => {
                 path: 'items.product',
                 select: 'tenSanPham imageUrl' 
             })
+            .populate('vouchers')
             .sort({ createdAt: -1 }); 
             
         return response.status(200).json({

@@ -20,7 +20,7 @@ export const verifyToken = (req, res, next) => {
 
 export const verifyAdmin = (req, res, next) => {
     verifyToken(req, res, () => {
-        if (req.user.role === 'admin') {
+        if (req.user.role === 'admin' || req.user.role === 'employee') {
             next();
         } else {
             return res.status(403).json({ message: "Bạn không có quyền Admin!" });

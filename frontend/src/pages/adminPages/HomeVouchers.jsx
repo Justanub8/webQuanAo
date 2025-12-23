@@ -85,6 +85,12 @@ const HomeVoucher = () => {
         required: true,
         render: (d) => d.ngayHetHan ? new Date(d.ngayHetHan).toISOString().split('T')[0] : ''
     },
+    {
+      header: 'Giá trị tối thiểu để sử dụng',
+      accessor: 'giaTriToiThieu',
+      type: 'number',
+      required: false,
+    },
     { 
       header: "Trạng thái", 
       accessor: "trangThai", 

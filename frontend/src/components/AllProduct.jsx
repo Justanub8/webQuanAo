@@ -26,12 +26,11 @@ export const AllProduct = () => {
           axios.get('http://localhost:5555/brands'),
           axios.get('http://localhost:5555/categories')
         ]);
-
-        if (productsRes.data && productsRes.data.data) {
-          setProductList(productsRes.data.data);
-          setFilteredProducts(productsRes.data.data);
-        }
-
+        const onlineProducts = productsRes.data.data.filter(
+            product => product.trangThai === 'Online'
+        );
+        setProductList(onlineProducts);
+        setFilteredProducts(onlineProducts);
         if (brandsRes.data && brandsRes.data.data) {
           const brandNames = brandsRes.data.data.map(item => item.tenBrand).filter(name => name && name.trim() !== "");;
           setBrandList(brandNames);

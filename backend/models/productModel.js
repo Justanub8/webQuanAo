@@ -29,6 +29,10 @@ const productSchema = mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: "Tag",
             require: false,
+        },
+        giamGia: {
+            type: Number,
+            require: false,
         }
     },
     {

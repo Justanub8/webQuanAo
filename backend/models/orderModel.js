@@ -48,6 +48,11 @@ const OrderSchema = mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: "Voucher",
         required: false
+    },
+    pttt: {
+        type: String,
+        require: true,
+        default: "VNPAY",
     }
 }, { timestamps: true });
 

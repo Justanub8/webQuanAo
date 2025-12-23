@@ -5,7 +5,14 @@ import axios from 'axios';
 export const Checkout = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  // Lấy dữ liệu từ giỏ hàng
   const { itemsToBuy, totalAmount } = location.state || { itemsToBuy: [], totalAmount: 0 };
+
+  // --- 1. STATE MỚI CHO VOUCHER ---
+  const [voucherInput, setVoucherInput] = useState(''); // Lưu text người dùng nhập
+  const [discount, setDiscount] = useState(0);          // Lưu số tiền được giảm
+  const [appliedCode, setAppliedCode] = useState(null); // Lưu mã voucher đã áp dụng thành công
+  // --------------------------------
 
   const [formData, setFormData] = useState({
     hoTen: '',
@@ -31,6 +38,7 @@ export const Checkout = () => {
       }));
     }
   }, []);
+
   useEffect(() => {
     if (!itemsToBuy || itemsToBuy.length === 0) {
         alert("Bạn chưa chọn sản phẩm nào để thanh toán!");
@@ -46,6 +54,41 @@ export const Checkout = () => {
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value).replace('₫', 'đ');
   };
+
+  // --- 2. HÀM XỬ LÝ ÁP DỤNG VOUCHER ---
+  const handleApplyVoucher = async () => {
+    console.log("Dữ liệu gửi đi Check:", { 
+        code: voucherInput.toUpperCase(), 
+        totalAmount: totalAmount 
+    });
+    if (!voucherInput.trim()) return alert("Vui lòng nhập mã giảm giá!");
+
+    try {
+        const res = await axios.post('http://localhost:5555/vouchers/check', {
+            code: voucherInput.toUpperCase(),
+            totalAmount: totalAmount // Gửi tổng tiền để BE check giá trị tối thiểu
+        });
+
+        if (res.status === 200) {
+            setDiscount(res.data.data.discount);
+            setAppliedCode(res.data.data.code);
+            alert(`Áp dụng thành công! Bạn được giảm: ${formatCurrency(res.data.data.discount)}`);
+        }
+    } catch (error) {
+        // Reset nếu lỗi
+        setDiscount(0);
+        setAppliedCode(null);
+        alert(error.response?.data?.message || "Mã giảm giá không hợp lệ!");
+    }
+  };
+
+  // Hàm hủy voucher để chọn mã khác
+  const handleRemoveVoucher = () => {
+      setAppliedCode(null);
+      setDiscount(0);
+      setVoucherInput('');
+  };
+  // ------------------------------------
 
   const handleOrder = async () => {
     const user = JSON.parse(localStorage.getItem('user'));
@@ -68,22 +111,17 @@ export const Checkout = () => {
         phone: formData.soDienThoai,
         paymentMethod: formData.phuongThucThanhToan, 
         note: formData.ghiChu,
-        totalPrice: totalAmount , 
         items: itemsToBuy.map(item => ({
             productId: item.productId, 
             quantity: item.quantity,
-            size: item.size,
-            price: item.price 
-        }))
+            size: item.size
+        })),
+        voucherCode: appliedCode // <-- 3. GỬI KÈM MÃ VOUCHER
     };
-
-    console.log("Payload gửi đi:", orderData); 
 
     try {
         const res = await axios.post('http://localhost:5555/orders', orderData, {
-            headers: {
-                Authorization: `Bearer ${token}` 
-            }
+            headers: { Authorization: `Bearer ${token}` }
         });
 
         if (res.status === 201 || res.status === 200) {
@@ -94,14 +132,11 @@ export const Checkout = () => {
         console.error(error);
         const msg = error.response?.data?.message || "Lỗi khi đặt hàng, vui lòng thử lại.";
         alert(msg);
-
-        if (error.response?.status === 401 || error.response?.status === 403) {
-             localStorage.removeItem('token');
-             localStorage.removeItem('user');
-             navigate('/login');
-        }
     }
   };
+
+  // Tính tổng tiền cuối cùng hiển thị
+  const finalTotal = totalAmount - discount;
 
   return (
     <div className="py-16 bg-white p-6 font-sans">
@@ -112,6 +147,8 @@ export const Checkout = () => {
       </div>
       <div className="container mx-auto max-w-6xl">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* CỘT TRÁI: FORM NHẬP LIỆU (Giữ nguyên) */}
           <div className="lg:col-span-2">
             <form className="grid grid-cols-1 md:grid-cols-2 gap-6" onSubmit={(e) => e.preventDefault()}>
               <div className="space-y-4">
@@ -226,6 +263,7 @@ export const Checkout = () => {
             </form>
           </div>
 
+          {/* CỘT PHẢI: ĐƠN HÀNG (Cập nhật logic Voucher) */}
           <div className="lg:col-span-1">
             <div className="bg-[#FFF0F5] p-6 rounded-xl h-full flex flex-col"> 
               <h3 className="text-xl font-bold text-center mb-6 uppercase">Đơn hàng</h3>
@@ -248,16 +286,34 @@ export const Checkout = () => {
                 ))}
               </div>
 
+              {/* --- 4. KHU VỰC NHẬP VOUCHER ĐÃ ĐƯỢC KẾT NỐI --- */}
               <div className="flex gap-2 mb-6">
                 <input 
-                  type="text" 
+                  type="text"
+                  value={voucherInput}
+                  onChange={(e) => setVoucherInput(e.target.value.toUpperCase())}
+                  disabled={!!appliedCode} // Disable khi đã có mã
                   placeholder="Nhập mã giảm giá" 
                   className="w-full bg-white border border-gray-200 rounded px-3 py-2 text-sm focus:outline-none"
                 />
-                <button className="bg-[#D9534F] hover:bg-[#c9302c] text-white px-4 py-2 rounded font-medium whitespace-nowrap transition-colors text-sm">
-                  Áp dụng
-                </button>
+                
+                {appliedCode ? (
+                    <button 
+                        onClick={handleRemoveVoucher}
+                        className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded font-medium whitespace-nowrap transition-colors text-sm"
+                    >
+                        Hủy
+                    </button>
+                ) : (
+                    <button 
+                        onClick={handleApplyVoucher}
+                        className="bg-[#D9534F] hover:bg-[#c9302c] text-white px-4 py-2 rounded font-medium whitespace-nowrap transition-colors text-sm"
+                    >
+                        Áp dụng
+                    </button>
+                )}
               </div>
+              {/* ----------------------------------------------- */}
 
               <div className="space-y-3 border-t border-gray-300 pt-4 text-gray-700 text-sm">
                 <div className="flex justify-between">
@@ -266,15 +322,21 @@ export const Checkout = () => {
                 </div>
                 <div className="flex justify-between">
                   <span>Phí vận chuyển:</span>
-                  <span className="font-medium">{formatCurrency(30000)}</span> 
+                  <span className="font-medium">{formatCurrency()}</span> 
                 </div>
+                
+                {/* --- 5. HIỂN THỊ DÒNG GIẢM GIÁ --- */}
                 <div className="flex justify-between text-green-600">
                   <span>Giảm giá:</span>
-                  <span className="font-medium">- {formatCurrency(0)}</span>
+                  {/* Hiển thị số tiền giảm thực tế */}
+                  <span className="font-medium">- {formatCurrency(discount)}</span>
                 </div>
+                {/* -------------------------------- */}
+
                 <div className="flex justify-between text-xl font-bold text-black pt-2 border-t border-dashed border-gray-400 mt-2">
                   <span>Tổng cộng:</span>
-                  <span className="text-[#D9534F]">{formatCurrency(totalAmount + 30000)}</span>
+                  {/* Tính lại tổng tiền: Hàng + Ship - Giảm giá */}
+                  <span className="text-[#D9534F]">{formatCurrency(Math.max(0, finalTotal))}</span>
                 </div>
               </div>
 

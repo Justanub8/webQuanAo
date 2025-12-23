@@ -3,11 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { Trash2, Minus, Plus, ChevronDown, AlertCircle } from 'lucide-react'; 
 import axios from 'axios'; 
 
-import sample from '../assets/T1 Overcoat1.png'; 
-import sample1 from '../assets/T1 Overcoat2.png'; 
-import sample2 from '../assets/T1 Tshirt.png';    
-import sample3 from '../assets/T1 pant.png';      
-
 export const UserCart = () => {
   const navigate = useNavigate();
   const [cartItems, setCartItems] = useState([]); 
@@ -30,37 +25,22 @@ export const UserCart = () => {
     }
 
     try {
-      const allProductRes = await axios.get('http://localhost:5555/products');
-      const allProducts = allProductRes.data.data;
 
       const res = await axios.get(`http://localhost:5555/carts/${user._id}`, {
           headers: { Authorization: `Bearer ${token}` }
       });
-
       const backendCart = res.data;
-      
       if (backendCart && backendCart.items) {
-        const t1Names = [
-          "[LoL] 2025 T1 2nd Uniform Jacket",
-          "[LoL] 2025 T1 Uniform Jacket",
-          "2024 World Champions Uniform Jersey",
-          "T1 2nd Uniform Pants"
-        ];
-        const t1Images = [sample, sample1, sample2, sample3];
-
         const mappedItems = backendCart.items.map((item) => {
-          const productIndex = allProducts.findIndex(s => s._id === item.product?._id);
-          const finalIndex = productIndex >= 0 ? (productIndex % t1Names.length) : 0;
-
           return {
             id: item._id, 
             productId: item.product?._id, 
-            name: t1Names[finalIndex], 
+            name: item.product?.tenSanPham, 
             variant: `Size: ${item.size}`, 
             size: item.size,
             price: item.product?.giaBan || 0,
             quantity: item.quantity,
-            image: t1Images[finalIndex], 
+            image: item.product?.imageUrl, 
             checked: false 
           };
         });

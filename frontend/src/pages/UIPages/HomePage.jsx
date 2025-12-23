@@ -13,8 +13,8 @@ const HomePage = () => {
       <HeaderUI/>
       <ToolbarUI/>
       <img src={banner} className='w-1000 h-98 object-contain bg-[#333333]'/>
-      <HotProduct title = "Sản phẩm nổi bật"/>
-      <HotProduct title = "Sản phẩm mới"/>
+      <HotProduct title = "Sản phẩm mới (New Arrival)"/>
+      <HotProduct title = "Sản phẩm nổi bật (Hot)"/>
       <img src={banner2} className='w-full h-170 object-cover bg-[#333333]'/>
       <Recommend/>
       <NearFooter/>
